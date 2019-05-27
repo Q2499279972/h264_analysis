@@ -57,6 +57,9 @@ public:
 	CEdit m_vh264nalinfo;
 	//Ò»ÌõPacket¼ÇÂ¼
 	typedef struct NALInfo{
+		int nal_reference_idc; 
+		int nal_unit_type; 
+		int len;
 		int data_offset;
 		int data_lenth;
 	}NALInfo;
@@ -68,4 +71,7 @@ public:
 	CComboBox m_vh264lang;
 	afx_msg void OnSelchangeVH264Lang();
 	afx_msg void OnItemchangedVH264Nallist(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnOwnerDataHint(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult);
+	CProgressCtrl m_progress;
 };

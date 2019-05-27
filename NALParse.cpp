@@ -158,11 +158,14 @@ int GetAnnexbNALU (NALU_t *nalu)
 int h264_nal_parse(LPVOID lparam,char *fileurl)
 {
 	bits=fopen(fileurl, "r+b");
-	if ( bits== NULL){
+	if ( bits== NULL)
+	{
 		AfxMessageBox(_T("Error open file"));
 		return -1;
 	}
-	
+	_fseeki64(bits, 0, SEEK_END);
+	__int64 TotalSize = _ftelli64(bits);
+	_fseeki64(bits, 0, SEEK_SET);
 	NALU_t *n;
 	int buffersize=800000;
 
@@ -183,6 +186,9 @@ int h264_nal_parse(LPVOID lparam,char *fileurl)
 	dlg=(CSpecialVH264Dlg *)lparam;
 	//----------
 	int nal_num=0;
+	dlg->m_vh264nallist.SetItemCount(nal_num);
+	dlg->m_progress.SetPos(0);
+	unsigned int progressRatio = 0;
 	//----------
 	while(!feof(bits)) {
 		int data_lenth;
@@ -197,9 +203,17 @@ int h264_nal_parse(LPVOID lparam,char *fileurl)
 		if(dlg->m_vh264nallistmaxnum.GetCheck()==1&&nal_num>5000){
 			break;
 		}
+		
+		unsigned int progressRatioTemp = data_offset * 100ULL / TotalSize;
+		if (progressRatio != progressRatioTemp)
+		{
+			progressRatio = progressRatioTemp;
+			dlg->m_progress.SetPos(progressRatio);
+		}
 		nal_num++;
 	}
-
+	dlg->m_progress.SetPos(100);
+	dlg->m_vh264nallist.SetItemCount(nal_num);
 	if (n){
 		if (n->buf){
 			free(n->buf);

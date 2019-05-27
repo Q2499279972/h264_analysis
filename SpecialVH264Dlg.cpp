@@ -72,6 +72,7 @@ void CSpecialVH264Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_V_H264_NALLIST_MAXNUM, m_vh264nallistmaxnum);
 	DDX_Control(pDX, IDC_V_H264_NALINFO, m_vh264nalinfo);
 	DDX_Control(pDX, IDC_V_H264_LANG, m_vh264lang);
+	DDX_Control(pDX, IDC_PROGRESS1, m_progress);
 }
 
 BEGIN_MESSAGE_MAP(CSpecialVH264Dlg, CDialogEx)
@@ -81,9 +82,11 @@ BEGIN_MESSAGE_MAP(CSpecialVH264Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_V_H264_INPUTURL_OPEN, &CSpecialVH264Dlg::OnBnClickedVH264InputurlOpen)
 	ON_NOTIFY ( NM_CUSTOMDRAW,IDC_V_H264_NALLIST, OnCustomdrawMyList )
 	ON_BN_CLICKED(IDC_V_H264_ABOUT, &CSpecialVH264Dlg::OnBnClickedVH264About)
-ON_WM_DROPFILES()
-ON_CBN_SELCHANGE(IDC_V_H264_LANG, &CSpecialVH264Dlg::OnSelchangeVH264Lang)
-ON_NOTIFY(LVN_ITEMCHANGED, IDC_V_H264_NALLIST, &CSpecialVH264Dlg::OnItemchangedVH264Nallist)
+	ON_NOTIFY(LVN_ODCACHEHINT, IDC_V_H264_NALLIST, OnOwnerDataHint)
+	ON_NOTIFY(LVN_GETDISPINFO, IDC_V_H264_NALLIST, OnGetDispInfo)
+	ON_WM_DROPFILES()
+	ON_CBN_SELCHANGE(IDC_V_H264_LANG, &CSpecialVH264Dlg::OnSelchangeVH264Lang)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_V_H264_NALLIST, &CSpecialVH264Dlg::OnItemchangedVH264Nallist)
 END_MESSAGE_MAP()
 
 
@@ -223,68 +226,25 @@ void CSpecialVH264Dlg::OnBnClickedVH264InputurlOpen()
 //len是不包含起始码的NAL长度
 int CSpecialVH264Dlg::AppendNLInfo(int nal_reference_idc,int nal_unit_type,int len,int data_lenth,int data_offset){
 	//如果选择了“最多输出5000条”，判断是否超过5000条
-	if(m_vh264nallistmaxnum.GetCheck()==1&&nl_index>5000){
+	if(m_vh264nallistmaxnum.GetCheck()==1&&nl_index>5000)
+	{
 		return 0;
 	}
-	CString temp_index,temp_nal_reference_idc,temp_nal_unit_type,temp_len;
-	int nIndex=0;
-	switch(nal_unit_type){
-	case 1:temp_nal_unit_type.Format(_T("SLICE"));break;
-	case 2:temp_nal_unit_type.Format(_T("DPA"));break;
-	case 3:temp_nal_unit_type.Format(_T("DPB"));break;
-	case 4:temp_nal_unit_type.Format(_T("DPC"));break;
-	case 5:temp_nal_unit_type.Format(_T("IDR_SLICE"));break;
-	case 6:temp_nal_unit_type.Format(_T("SEI"));break;
-	case 7:temp_nal_unit_type.Format(_T("SPS"));break;
-	case 8:temp_nal_unit_type.Format(_T("PPS"));break;
-	case 9:temp_nal_unit_type.Format(_T("AUD"));break;
-	case 10:temp_nal_unit_type.Format(_T("END_SEQUENCE"));break;
-	case 11:temp_nal_unit_type.Format(_T("END_STREAM"));break;
-	case 12:temp_nal_unit_type.Format(_T("FILLER_DATA"));break;
-	case 13:temp_nal_unit_type.Format(_T("SPS_EXT"));break;
-	case 19:temp_nal_unit_type.Format(_T("AUXILIARY_SLICE"));break;
-	default:temp_nal_unit_type.Format(_T("Other"));break;
-	}
-	temp_index.Format(_T("%d"),nl_index);
 
-	switch(nal_reference_idc){
-	case 0:temp_nal_reference_idc.Format(_T("DISPOS"));break;
-	case 1:temp_nal_reference_idc.Format(_T("LOW"));break;
-	case 2:temp_nal_reference_idc.Format(_T("HIGH"));break;
-	case 3:temp_nal_reference_idc.Format(_T("HIGHEST"));break;
-	default:temp_nal_reference_idc.Format(_T("Other"));break;
-	}
-
-	temp_len.Format(_T("%d"),len);
-	//获取当前记录条数
-	nIndex=m_vh264nallist.GetItemCount();
-	//“行”数据结构
-	LV_ITEM lvitem;
-	lvitem.mask=LVIF_TEXT;
-	lvitem.iItem=nIndex;
-	lvitem.iSubItem=0;
-	//注：vframe_index不可以直接赋值！
-	//务必使用f_index执行Format!再赋值！
-	lvitem.pszText=temp_index.GetBuffer();
-	//------------------------
-	//这个vector记录了nal的位置信息
-	//使用它我们可以获取到NAL的详细信息
-	//我们要存储包含起始码的长度
-	//起始码原本不是NAL的一部分
 	NALInfo nalinfo;
+	nalinfo.nal_reference_idc = nal_reference_idc;
+	nalinfo.nal_unit_type = nal_unit_type;
+	nalinfo.len = len;
 	nalinfo.data_lenth=data_lenth;
 	nalinfo.data_offset=data_offset;
 	nl_infovector.push_back(nalinfo);
-	//------------------------
-	m_vh264nallist.InsertItem(&lvitem);
-	m_vh264nallist.SetItemText(nIndex,1,temp_nal_reference_idc);
-	m_vh264nallist.SetItemText(nIndex,2,temp_nal_unit_type);
-	m_vh264nallist.SetItemText(nIndex,3,temp_len);
+
 	nl_index++;
 	return TRUE;
 }
 
-void CSpecialVH264Dlg::SystemClear(){
+void CSpecialVH264Dlg::SystemClear()
+{
 	nl_infovector.clear();
 	m_vh264nallist.DeleteAllItems();
 	nl_index=0;
@@ -424,7 +384,83 @@ void CSpecialVH264Dlg::OnItemchangedVH264Nallist(NMHDR *pNMHDR, LRESULT *pResult
 	
 	m_vh264nalinfo.SetWindowText(outputstr1);
 }
-
-
 	*pResult = 0;
+}
+
+
+void CSpecialVH264Dlg::OnOwnerDataHint(NMHDR* pNMHDR, LRESULT* pResult)
+{
+
+}
+
+void CSpecialVH264Dlg::OnGetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	LV_DISPINFO* pDispInfo = (LV_DISPINFO*)pNMHDR;
+	LV_ITEM* pItem = &(pDispInfo)->item;
+
+	int iItemIndx = pItem->iItem;
+
+	CString temp_index,temp_nal_reference_idc,temp_nal_unit_type,temp_len;
+	int nIndex=0;
+	switch(nl_infovector[iItemIndx].nal_unit_type)
+	{
+		case 1:temp_nal_unit_type.Format(_T("SLICE"));break;
+		case 2:temp_nal_unit_type.Format(_T("DPA"));break;
+		case 3:temp_nal_unit_type.Format(_T("DPB"));break;
+		case 4:temp_nal_unit_type.Format(_T("DPC"));break;
+		case 5:temp_nal_unit_type.Format(_T("IDR_SLICE"));break;
+		case 6:temp_nal_unit_type.Format(_T("SEI"));break;
+		case 7:temp_nal_unit_type.Format(_T("SPS"));break;
+		case 8:temp_nal_unit_type.Format(_T("PPS"));break;
+		case 9:temp_nal_unit_type.Format(_T("AUD"));break;
+		case 10:temp_nal_unit_type.Format(_T("END_SEQUENCE"));break;
+		case 11:temp_nal_unit_type.Format(_T("END_STREAM"));break;
+		case 12:temp_nal_unit_type.Format(_T("FILLER_DATA"));break;
+		case 13:temp_nal_unit_type.Format(_T("SPS_EXT"));break;
+		case 19:temp_nal_unit_type.Format(_T("AUXILIARY_SLICE"));break;
+		default:temp_nal_unit_type.Format(_T("Other"));break;
+	}
+	temp_index.Format(_T("%d"),nl_index);
+
+	switch(nl_infovector[iItemIndx].nal_reference_idc)
+	{
+		case 0:temp_nal_reference_idc.Format(_T("DISPOS"));break;
+		case 1:temp_nal_reference_idc.Format(_T("LOW"));break;
+		case 2:temp_nal_reference_idc.Format(_T("HIGH"));break;
+		case 3:temp_nal_reference_idc.Format(_T("HIGHEST"));break;
+		default:temp_nal_reference_idc.Format(_T("Other"));break;
+	}
+
+	if (pItem->mask & LVIF_TEXT) //字符串缓冲区有效
+	{
+		switch (pItem->iSubItem)
+		{
+			case 0: //
+			{
+				CString s;
+				s.Format("%d", iItemIndx);
+				lstrcpy(pItem->pszText, s);
+				break;
+			}
+			case 1: //填充子项1
+			{
+				CString s;
+				s.Format("%d", nl_infovector[iItemIndx].nal_reference_idc);
+				lstrcpy(pItem->pszText, s);
+				break;
+			}
+			case 2: //填充子项2
+			{
+				lstrcpy(pItem->pszText, temp_nal_unit_type);
+				break;
+			}
+			case 3: //填充子项3
+			{
+				CString s;
+				s.Format("%d", nl_infovector[iItemIndx].len);
+				lstrcpy(pItem->pszText, s);
+				break;
+			}
+		}
+	}
 }
